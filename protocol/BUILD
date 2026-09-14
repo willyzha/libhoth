@@ -608,6 +608,40 @@ cc_library(
     hdrs = ["util.h"],
 )
 
+cc_test(
+    name = "util_test",
+    srcs = ["util_test.cc"],
+    deps = [
+        ":util",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "secret_provisioning",
+    srcs = ["secret_provisioning.c"],
+    hdrs = ["secret_provisioning.h"],
+    deps = [
+        ":host_cmd",
+        ":libhoth_status",
+        "//transports:libhoth_device",
+    ],
+)
+
+cc_test(
+    name = "secret_provisioning_test",
+    srcs = ["secret_provisioning_test.cc"],
+    deps = [
+        ":host_cmd",
+        ":secret_provisioning",
+        "//protocol/test:libhoth_device_mock",
+        "//transports:libhoth_device",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "mauv",
     srcs = ["mauv.c"],

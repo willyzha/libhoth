@@ -48,6 +48,7 @@
 #include "htool_rot_usb.h"
 #include "htool_sbs_dual.h"
 #include "htool_sbs_single.h"
+#include "htool_secret_provisioning.h"
 #include "htool_secure_boot.h"
 #include "htool_security_certificates.h"
 #include "htool_security_info.h"
@@ -2056,6 +2057,28 @@ static const struct htool_cmd CMDS[] = {
                  .desc = "The perso blob file."},
                 {HTOOL_FLAG_VALUE, .name = "output", .default_value = "",
                  .desc = "The signed cert file."},
+                {}},
+    },
+    {
+        .verbs = (const char*[]){"provisioning", "get_encryption_key", NULL},
+        .desc = "Get the secret-provisioning encryption key certificate chain",
+        .func = htool_provisioning_get_encryption_key,
+        .params =
+            (const struct htool_param[]){
+                {HTOOL_FLAG_VALUE, .name = "output", .default_value = "",
+                 .desc = "File to write the raw certificate chain to."},
+                {}},
+    },
+    {
+        .verbs = (const char*[]){"provisioning", "store_secrets", NULL},
+        .desc = "Store secrets encrypted to the provisioning encryption key",
+        .func = htool_provisioning_store_secrets,
+        .params =
+            (const struct htool_param[]){
+                {HTOOL_FLAG_VALUE, .name = "secrets", .default_value = "",
+                 .desc = "File containing the encrypted secrets."},
+                {HTOOL_FLAG_VALUE, .name = "hex", .default_value = "",
+                 .desc = "The encrypted secrets as a hex string."},
                 {}},
     },
     {

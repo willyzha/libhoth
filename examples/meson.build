@@ -46,6 +46,8 @@ executable(
         'htool_sbs_single.c',
         'htool_sbs_dual.c',
         'htool_usb.c',
+        'htool_secret_provisioning.h',
+        'htool_secret_provisioning.c',
         'htool_secure_boot.h',
         'htool_secure_boot.c',
         'htool_srtm.h',

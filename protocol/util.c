@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -55,5 +56,41 @@ int libhoth_force_write(int fd, const void* buf, size_t count) {
     cbuf += bytes_written;
     count -= bytes_written;
   }
+  return 0;
+}
+
+static int hex_digit_value(char c) {
+  if (c >= '0' && c <= '9') {
+    return c - '0';
+  }
+  if (c >= 'a' && c <= 'f') {
+    return c - 'a' + 10;
+  }
+  if (c >= 'A' && c <= 'F') {
+    return c - 'A' + 10;
+  }
+  return -1;
+}
+
+int libhoth_parse_hex_string(const char* hex, uint8_t* out, size_t out_size,
+                             size_t* out_len) {
+  if (hex == NULL || out == NULL || out_len == NULL) {
+    return -1;
+  }
+
+  size_t hex_len = strlen(hex);
+  if (hex_len == 0 || hex_len % 2 != 0 || hex_len / 2 > out_size) {
+    return -1;
+  }
+
+  for (size_t i = 0; i < hex_len; i += 2) {
+    int hi = hex_digit_value(hex[i]);
+    int lo = hex_digit_value(hex[i + 1]);
+    if (hi < 0 || lo < 0) {
+      return -1;
+    }
+    out[i / 2] = (uint8_t)((hi << 4) | lo);
+  }
+  *out_len = hex_len / 2;
   return 0;
 }

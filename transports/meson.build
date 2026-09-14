@@ -1,5 +1,6 @@
 transport_srcs = [
     'libhoth_device.c',
+    'libhoth_fifo.c',
     'libhoth_mtd.c',
     'libhoth_usb.c',
     'libhoth_spi.c',
@@ -37,6 +38,7 @@ libhoth_deps += [libusb]
 libhoth_transport_headers = [
     'libhoth_device.h',
     'libhoth_ec.h',
+    'libhoth_fifo.h',
     'libhoth_mtd.h',
     'libhoth_spi.h',
     'libhoth_usb.h',

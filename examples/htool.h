@@ -31,6 +31,7 @@ void htool_report_error(const char* cmd_name, libhoth_error err);
 struct libhoth_device;
 
 struct libhoth_device* htool_libhoth_dbus_device(void);
+struct libhoth_device* htool_libhoth_fifo_device(void);
 struct libhoth_device* htool_libhoth_mtd_device(void);
 struct libhoth_device* htool_libhoth_spi_device(void);
 struct libhoth_device* htool_libhoth_usb_device(void);

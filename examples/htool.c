@@ -72,6 +72,7 @@
 #include "protocol/spi_proxy.h"
 #include "protocol/util.h"
 #include "transports/libhoth_device.h"
+#include "transports/libhoth_fifo.h"
 #include "transports/libhoth_spi.h"
 
 void htool_report_error(const char* cmd_name, libhoth_error err) {
@@ -673,6 +674,31 @@ static int command_srtm(const struct htool_invocation* inv) {
       /*version=*/0, &request, sizeof(request), NULL, 0, NULL);
 }
 
+struct libhoth_device* htool_libhoth_fifo_device(void) {
+  const char* fifo_in = NULL;
+  const char* fifo_out = NULL;
+  if (htool_get_param_string(htool_global_flags(), "fifo_in", &fifo_in) != 0 ||
+      htool_get_param_string(htool_global_flags(), "fifo_out", &fifo_out) != 0) {
+    fprintf(stderr, "fifo transport requires --fifo_in and --fifo_out\n");
+    return NULL;
+  }
+  if (!fifo_in || !fifo_out || strlen(fifo_in) == 0 || strlen(fifo_out) == 0) {
+    fprintf(stderr, "fifo transport requires non-empty --fifo_in and --fifo_out\n");
+    return NULL;
+  }
+  struct libhoth_fifo_device_init_options options = {
+      .fifo_in = fifo_in,
+      .fifo_out = fifo_out,
+  };
+  struct libhoth_device* dev = NULL;
+  libhoth_error err = libhoth_fifo_open(&options, &dev);
+  if (err != HOTH_SUCCESS) {
+    fprintf(stderr, "Failed to open FIFO device: %d\n", (int)err);
+    return NULL;
+  }
+  return dev;
+}
+
 struct libhoth_device* htool_libhoth_device(void) {
   static struct libhoth_device* result;
   if (result) {
@@ -687,8 +713,17 @@ struct libhoth_device* htool_libhoth_device(void) {
     return NULL;
   }
 
-  if (strlen(transport_method_str) <= 0 ||
-      (strcmp(transport_method_str, "usb") == 0)) {
+  if (strlen(transport_method_str) <= 0) {
+    const char* fifo_in = NULL;
+    const char* fifo_out = NULL;
+    if (htool_get_param_string(htool_global_flags(), "fifo_in", &fifo_in) == 0 &&
+        htool_get_param_string(htool_global_flags(), "fifo_out", &fifo_out) == 0 &&
+        fifo_in && fifo_out && strlen(fifo_in) > 0 && strlen(fifo_out) > 0) {
+      result = htool_libhoth_fifo_device();
+    } else {
+      result = htool_libhoth_usb_device();
+    }
+  } else if (strcmp(transport_method_str, "usb") == 0) {
     result = htool_libhoth_usb_device();
   } else if (strcmp(transport_method_str, "spidev") == 0) {
     result = htool_libhoth_spi_device();
@@ -696,6 +731,8 @@ struct libhoth_device* htool_libhoth_device(void) {
     result = htool_libhoth_mtd_device();
   } else if (strcmp(transport_method_str, "dbus") == 0) {
     result = htool_libhoth_dbus_device();
+  } else if (strcmp(transport_method_str, "fifo") == 0) {
+    result = htool_libhoth_fifo_device();
   } else {
     fprintf(stderr, "Unknown transport protocol %s\n\r\n",
             transport_method_str);
@@ -2267,7 +2304,11 @@ static const struct htool_cmd CMDS[] = {
 static const struct htool_param GLOBAL_FLAGS[] = {
     {HTOOL_FLAG_VALUE, .name = "transport", .default_value = "",
      .desc = "The method of connecting to the RoT; for example "
-             "'spidev'/'usb'/'mtd'/'dbus'"},
+             "'spidev'/'usb'/'mtd'/'dbus'/'fifo'"},
+    {HTOOL_FLAG_VALUE, .name = "fifo_in", .default_value = "",
+     .desc = "The FIFO path to read responses from (for 'fifo' transport)."},
+    {HTOOL_FLAG_VALUE, .name = "fifo_out", .default_value = "",
+     .desc = "The FIFO path to write requests to (for 'fifo' transport)."},
     {HTOOL_FLAG_VALUE, .name = "usb_loc", .default_value = "",
      .desc = "The full bus-portlist location of the RoT; for example "
              "'1-10.4.4.1'."},

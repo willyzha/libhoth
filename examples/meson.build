@@ -301,4 +301,32 @@ if gtest_dep.found() and gmock_dep.found()
         ),
     )
 
+    test(
+        'libhoth_fifo_test_asan',
+        executable(
+            'libhoth_fifo_test_asan_exe',
+            sources: [
+                '../transports/libhoth_fifo_test.cc',
+            ],
+            include_directories: incdir,
+            link_with: [libhoth.get_static_lib()],
+            dependencies: [gtest_dep, gmock_dep],
+            c_args: ['-fsanitize=address'],
+            cpp_args: ['-fsanitize=address'],
+            link_args: ['-fsanitize=address'],
+        ),
+    )
+    test(
+        'libhoth_fifo_test',
+        executable(
+            'libhoth_fifo_test_exe',
+            sources: [
+                '../transports/libhoth_fifo_test.cc',
+            ],
+            include_directories: incdir,
+            link_with: [libhoth.get_static_lib()],
+            dependencies: [gtest_dep, gmock_dep],
+        ),
+    )
+
 endif

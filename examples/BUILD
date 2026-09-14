@@ -330,6 +330,7 @@ cc_binary(
         "//protocol:statistics",
         "//protocol:util",
         "//transports:libhoth_device",
+        "//transports:libhoth_fifo",
         "//transports:libhoth_mtd",
         "//transports:libhoth_spi",
         "//transports:libhoth_usb",

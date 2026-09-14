@@ -39,6 +39,17 @@ cc_library(
 )
 
 cc_library(
+    name = "libhoth_fifo",
+    srcs = ["libhoth_fifo.c"],
+    hdrs = ["libhoth_fifo.h"],
+    deps = [
+        ":libhoth_device",
+        ":libhoth_ec",
+        "//protocol:libhoth_status",
+    ],
+)
+
+cc_library(
     name = "libhoth_usb",
     srcs = ["libhoth_usb.c"],
     hdrs = ["libhoth_usb.h"],

@@ -95,6 +95,25 @@ cc_library(
 )
 
 cc_library(
+    name = "htool_dice_certs",
+    srcs = ["htool_dice_certs.c"],
+    hdrs = ["htool_dice_certs.h"],
+    deps = [
+        ":htool_security_v2_defs",
+    ],
+)
+
+cc_test(
+    name = "htool_dice_certs_test",
+    srcs = ["htool_dice_certs_test.cc"],
+    deps = [
+        ":htool_dice_certs",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "htool_security_certificates",
     srcs = ["htool_security_certificates.c"],
     hdrs = ["htool_security_certificates.h"],
@@ -187,6 +206,8 @@ cc_binary(
         "htool_debug.h",
         "htool_dfu.c",
         "htool_dfu.h",
+        "htool_dice_certs.c",
+        "htool_dice_certs.h",
         "htool_firmware_update.c",
         "htool_firmware_update.h",
         "htool_i2c.c",

@@ -170,6 +170,25 @@ struct hoth_security_v2_parameter {
   25
 
 /**
+ * The command to generate a new attestation key. The device returns a
+ * certificate signing request for the new key along with the private key,
+ * wrapped so that only this device can unwrap it.
+ */
+#define HOTH_PRV_CMD_HOTH_SECURITY_V2_GENERATE_ATTESTATION_KEY_MINOR_COMMAND 15
+
+/**
+ * The command to install an attestation key from a wrapped key and the
+ * corresponding certificate signing request.
+ */
+#define HOTH_PRV_CMD_HOTH_SECURITY_V2_LOAD_ATTESTATION_KEY_FROM_CSR_MINOR_COMMAND \
+  16
+
+/**
+ * The command to remove the currently installed attestation key.
+ */
+#define HOTH_PRV_CMD_HOTH_SECURITY_V2_UNLOAD_ATTESTATION_KEY_MINOR_COMMAND 3
+
+/**
  * The command to get token information from the device.
  */
 #define HOTH_PRV_CMD_HOTH_SECURITY_V2_TOKENS_MAJOR_COMMAND 5

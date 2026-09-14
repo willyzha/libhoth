@@ -30,6 +30,7 @@
 #include <unistd.h>
 
 #include "host_commands.h"
+#include "htool_attestation_key.h"
 #include "htool_authz_command.h"
 #include "htool_cmd.h"
 #include "htool_console.h"
@@ -2128,6 +2129,47 @@ static const struct htool_cmd CMDS[] = {
                 {HTOOL_FLAG_VALUE, .name = "output", .default_value = "",
                  .desc = "The Signed Attestation Public Certificate"},
                 {}},
+    },
+    {
+        .verbs = (const char*[]){"security", "attestation_key", "generate",
+                                 NULL},
+        .desc =
+            "Generate a new attestation key and return its signing request",
+        .func = htool_attestation_key_generate,
+        .params =
+            (const struct htool_param[]){
+                {HTOOL_FLAG_VALUE, .name = "csr_output", .default_value = "",
+                 .desc = "File to write the raw signing request to."},
+                {HTOOL_FLAG_VALUE, .name = "wrapped_key_output",
+                 .default_value = "",
+                 .desc = "File to write the raw wrapped key to."},
+                {}},
+    },
+    {
+        .verbs = (const char*[]){"security", "attestation_key",
+                                 "load_from_csr", NULL},
+        .desc = "Install an attestation key from a wrapped key and its "
+                "signing request",
+        .func = htool_attestation_key_load_from_csr,
+        .params =
+            (const struct htool_param[]){
+                {HTOOL_FLAG_VALUE, .name = "wrapped_key", .default_value = "",
+                 .desc = "File containing the raw wrapped key."},
+                {HTOOL_FLAG_VALUE, .name = "wrapped_key_hex",
+                 .default_value = "",
+                 .desc = "The wrapped key as a hex string."},
+                {HTOOL_FLAG_VALUE, .name = "csr", .default_value = "",
+                 .desc = "File containing the raw signing request."},
+                {HTOOL_FLAG_VALUE, .name = "csr_hex", .default_value = "",
+                 .desc = "The signing request as a hex string."},
+                {}},
+    },
+    {
+        .verbs = (const char*[]){"security", "attestation_key", "unload",
+                                 NULL},
+        .desc = "Remove the currently installed attestation key",
+        .func = htool_attestation_key_unload,
+        .params = (const struct htool_param[]){{}},
     },
     {
         .verbs = (const char*[]){"security", "attestation", NULL},

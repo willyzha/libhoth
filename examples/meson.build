@@ -19,6 +19,8 @@ executable(
     'htool',
     sources: [
         'htool.c',
+        'htool_attestation_key.h',
+        'htool_attestation_key.c',
         'htool_authz_command.c',
         'htool_cmd.c',
         'htool_console.c',
@@ -144,6 +146,44 @@ if gtest_dep.found() and gmock_dep.found()
             ],
             include_directories: incdir,
             link_with: [libhoth.get_static_lib()], 
+            dependencies: [gtest_dep, gmock_dep],
+        ),
+    )
+
+    test(
+        'htool_attestation_key_test_asan',
+        executable(
+            'htool_attestation_key_test_asan_exe',
+            sources: [
+                'test/test_util.h',
+                'test/test_util.cc',
+                'htool_dice_certs.c',
+                'htool_attestation_key.c',
+                'htool_attestation_key_test.cc',
+                '../protocol/test/libhoth_device_mock.cc',
+            ],
+            include_directories: incdir,
+            link_with: [libhoth.get_static_lib()],
+            dependencies: [gtest_dep, gmock_dep],
+            c_args: ['-fsanitize=address'],
+            cpp_args: ['-fsanitize=address'],
+            link_args: ['-fsanitize=address'],
+        ),
+    )
+    test(
+        'htool_attestation_key_test',
+        executable(
+            'htool_attestation_key_test_exe',
+            sources: [
+                'test/test_util.h',
+                'test/test_util.cc',
+                'htool_dice_certs.c',
+                'htool_attestation_key.c',
+                'htool_attestation_key_test.cc',
+                '../protocol/test/libhoth_device_mock.cc',
+            ],
+            include_directories: incdir,
+            link_with: [libhoth.get_static_lib()],
             dependencies: [gtest_dep, gmock_dep],
         ),
     )

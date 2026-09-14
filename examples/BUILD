@@ -114,6 +114,38 @@ cc_test(
 )
 
 cc_library(
+    name = "htool_attestation_key",
+    srcs = ["htool_attestation_key.c"],
+    hdrs = ["htool_attestation_key.h"],
+    deps = [
+        ":host_commands",
+        ":htool_cmd",
+        ":htool_dice_certs",
+        ":htool_header",
+        ":htool_macros",
+        ":htool_security_v2",
+        ":htool_security_v2_defs",
+        "//protocol:host_cmd",
+        "//protocol:util",
+        "//transports:libhoth_device",
+    ],
+)
+
+cc_test(
+    name = "htool_attestation_key_test",
+    srcs = ["htool_attestation_key_test.cc"],
+    deps = [
+        ":htool_attestation_key",
+        ":htool_security_v2",
+        ":htool_security_version",
+        "//examples/test:test_util",
+        "//protocol/test:libhoth_device_mock",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "htool_security_certificates",
     srcs = ["htool_security_certificates.c"],
     hdrs = ["htool_security_certificates.h"],
@@ -194,6 +226,8 @@ cc_binary(
         "host_commands.h",
         "htool.c",
         "htool.h",
+        "htool_attestation_key.c",
+        "htool_attestation_key.h",
         "htool_authz_command.c",
         "htool_authz_command.h",
         "htool_cmd.c",

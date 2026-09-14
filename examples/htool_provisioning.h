@@ -25,7 +25,7 @@ extern "C" {
 // Forward declaration
 struct htool_invocation;
 
-#define PROVISIONING_LOG_MAX_SIZE 2048
+#define PROVISIONING_LOG_MAX_SIZE 6144
 
 #define PROVISIONING_LOG_CHUNK_MAX_SIZE 1008
 

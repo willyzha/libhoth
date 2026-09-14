@@ -216,11 +216,13 @@ int htool_validate_and_sign(const struct htool_invocation* inv) {
     goto cleanup;
   }
 
-  output_ptr = fopen(output_file, "wb");
-  if (output_ptr == NULL) {
-    printf("Error: %s, when attempting to open file: %s\n", strerror(errno),
-           output_file);
-    goto cleanup;
+  if (strlen(output_file) > 0) {
+    output_ptr = fopen(output_file, "wb");
+    if (output_ptr == NULL) {
+      printf("Error: %s, when attempting to open file: %s\n", strerror(errno),
+             output_file);
+      goto cleanup;
+    }
   }
 
   enum provisioning_log_op operation = PROVISIONING_LOG_VALIDATE_AND_SIGN;
@@ -269,7 +271,9 @@ int htool_validate_and_sign(const struct htool_invocation* inv) {
         }
 
         // Write the signed provisioning_log into the output file
-        fwrite(response, response_size, sizeof(uint8_t), output_ptr);
+        if (output_ptr != NULL) {
+          fwrite(response, response_size, sizeof(uint8_t), output_ptr);
+        }
         break;
       }
     }

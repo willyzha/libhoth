@@ -392,42 +392,29 @@ TEST_F(HtoolProvisioningTest, GetProvisioningLogResponseTooLarge) {
       .checksum = 0x12345678,
   };
 
-  // First chunk
-  struct hoth_provisioning_log response1{};
-  response1.hdr = header;
-  response1.hdr.size = PROVISIONING_LOG_CHUNK_MAX_SIZE;
-  std::vector<uint8_t> data1(PROVISIONING_LOG_CHUNK_MAX_SIZE, 0xAA);
-  memcpy(response1.data, data1.data(), data1.size());
-
-  // Second chunk
-  struct hoth_provisioning_log response2{};
-  response2.hdr = header;
-  response2.hdr.size = PROVISIONING_LOG_CHUNK_MAX_SIZE;
-  std::vector<uint8_t> data2(PROVISIONING_LOG_CHUNK_MAX_SIZE, 0xBB);
-  memcpy(response2.data, data2.data(), data2.size());
-
-  // Third chunk (the one that will overflow)
-  struct hoth_provisioning_log response3{};
-  response3.hdr = header;
-  uint16_t last_chunk_size = (header.size % PROVISIONING_LOG_CHUNK_MAX_SIZE);
-  if (last_chunk_size == 0) {
-    last_chunk_size = PROVISIONING_LOG_CHUNK_MAX_SIZE;
+  std::vector<struct hoth_provisioning_log> responses;
+  uint16_t bytes_simulated = 0;
+  while (bytes_simulated < header.size) {
+    uint16_t chunk_size = std::min(
+        static_cast<uint16_t>(header.size - bytes_simulated),
+        static_cast<uint16_t>(PROVISIONING_LOG_CHUNK_MAX_SIZE));
+    struct hoth_provisioning_log resp{};
+    resp.hdr = header;
+    resp.hdr.size = chunk_size;
+    memset(resp.data, 0xAA, chunk_size);
+    responses.push_back(resp);
+    bytes_simulated += chunk_size;
   }
-  response3.hdr.size = last_chunk_size;
-  std::vector<uint8_t> data3(last_chunk_size, 0xCC);
-  memcpy(response3.data, data3.data(), data3.size());
 
   EXPECT_CALL(mock_, send(_, _, _)).WillRepeatedly(Return(LIBHOTH_OK));
-  EXPECT_CALL(mock_, receive(_, _, _, _, _))
-      .WillOnce(DoAll(CopyResp(&header, sizeof(header)), Return(LIBHOTH_OK)))
-      .WillOnce(DoAll(CopyResp(&response1, sizeof(header) +
-                                               PROVISIONING_LOG_CHUNK_MAX_SIZE),
-                      Return(LIBHOTH_OK)))
-      .WillOnce(DoAll(CopyResp(&response2, sizeof(header) +
-                                               PROVISIONING_LOG_CHUNK_MAX_SIZE),
-                      Return(LIBHOTH_OK)))
-      .WillOnce(DoAll(CopyResp(&response3, sizeof(header) + last_chunk_size),
-                      Return(LIBHOTH_OK)));
+  auto& receive_call = EXPECT_CALL(mock_, receive(_, _, _, _, _))
+      .WillOnce(DoAll(CopyResp(&header, sizeof(header)), Return(LIBHOTH_OK)));
+  for (size_t i = 0; i < responses.size(); ++i) {
+    uint16_t chunk_size = responses[i].hdr.size;
+    receive_call.WillOnce(
+        DoAll(CopyResp(&responses[i], sizeof(header) + chunk_size),
+              Return(LIBHOTH_OK)));
+  }
 
   ASSERT_EQ(htool_get_provisioning_log(&inv), -1);
 
@@ -518,6 +505,34 @@ TEST_F(HtoolProvisioningTest, ValidateAndSignSuccess) {
 
   remove(tmp_perso_blob_file.c_str());
   remove(tmp_output_file.c_str());
+}
+
+TEST_F(HtoolProvisioningTest, ValidateAndSignSuccessWithoutOutput) {
+  struct htool_invocation inv{};
+  std::string tmp_perso_blob_file =
+      tmp_dir_path_ + "/perso_blob.ValidateAndSignSuccessWithoutOutput.bin";
+  EXPECT_CALL(invocation_mock_, GetParamString("perso_blob", _))
+      .WillOnce(
+          DoAll(SetArgPointee<1>(tmp_perso_blob_file.c_str()), Return(0)));
+  EXPECT_CALL(invocation_mock_, GetParamString("output", _))
+      .WillOnce(DoAll(SetArgPointee<1>(""), Return(0)));
+
+  std::vector<uint8_t> perso_blob_data = {0x01, 0x02, 0x03, 0x04, 0x05};
+  FILE* fp_in = fopen(tmp_perso_blob_file.c_str(), "wb");
+  ASSERT_NE(fp_in, nullptr);
+  ASSERT_EQ(fwrite(perso_blob_data.data(), 1, perso_blob_data.size(), fp_in),
+            perso_blob_data.size());
+  fclose(fp_in);
+
+  std::vector<uint8_t> signed_log_data = {0xDE, 0xAD, 0xBE, 0xEF};
+
+  EXPECT_CALL(mock_, send(_, _, _)).WillOnce(Return(LIBHOTH_OK));
+  EXPECT_CALL(mock_, receive(_, _, _, _, _))
+      .WillOnce(DoAll(CopyResp(signed_log_data.data(), signed_log_data.size()),
+                      Return(LIBHOTH_OK)));
+
+  ASSERT_EQ(htool_validate_and_sign(&inv), 0);
+  remove(tmp_perso_blob_file.c_str());
 }
 
 TEST_F(HtoolProvisioningTest, ValidateAndSignUnexpectedErrorFromDevice) {

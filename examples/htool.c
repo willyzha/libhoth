@@ -2059,6 +2059,60 @@ static const struct htool_cmd CMDS[] = {
                 {}},
     },
     {
+        .verbs = (const char*[]){"provisioning", "get_encryption_key", NULL},
+        .desc = "Get the secret-provisioning encryption key certificate chain",
+        .func = htool_provisioning_get_encryption_key,
+        .params =
+            (const struct htool_param[]){
+                {HTOOL_FLAG_VALUE, .name = "output", .default_value = "",
+                 .desc = "File to write the raw certificate chain to."},
+                {}},
+    },
+    {
+        .verbs = (const char*[]){"provisioning", "store_secrets", NULL},
+        .desc = "Store secrets encrypted to the provisioning encryption key",
+        .func = htool_provisioning_store_secrets,
+        .params =
+            (const struct htool_param[]){
+                {HTOOL_FLAG_VALUE, .name = "secrets", .default_value = "",
+                 .desc = "File containing the encrypted secrets."},
+                {HTOOL_FLAG_VALUE, .name = "hex", .default_value = "",
+                 .desc = "The encrypted secrets as a hex string."},
+                {}},
+    },
+    {
+        .verbs = (const char*[]){"provisioning", "write", NULL},
+        .desc = "Write and commit the provisioning log",
+        .func = htool_provisioning_write,
+        .params =
+            (const struct htool_param[]){
+                {HTOOL_FLAG_VALUE, .name = "input", .default_value = "",
+                 .desc = "File containing the provisioning log to write."},
+                {}},
+    },
+    {
+        .verbs = (const char*[]){"provisioning", "activate", NULL},
+        .desc = "Activate the provisioning log with the provided Device ID",
+        .func = htool_provisioning_activate,
+        .params =
+            (const struct htool_param[]){
+                {HTOOL_FLAG_VALUE, .name = "device_id", .default_value = "",
+                 .desc = "32-byte Device ID as a hex string."},
+                {}},
+    },
+    {
+        .verbs = (const char*[]){"provisioning", "load_mldsa_key", NULL},
+        .desc = "Load the ML-DSA-44 public key to the RoT",
+        .func = htool_provisioning_load_mldsa_key,
+        .params =
+            (const struct htool_param[]){
+                {HTOOL_FLAG_VALUE, .name = "key", .default_value = "",
+                 .desc = "Path to the 1312-byte ML-DSA-44 public key file."},
+                {HTOOL_FLAG_VALUE, .name = "hex", .default_value = "",
+                 .desc = "The 1312-byte ML-DSA-44 public key as a hex string."},
+                {}},
+    },
+    {
         .verbs = (const char*[]){"security", "get_alias_key_cert", NULL},
         .desc = "Get the Alias Key Cert",
         .func = htool_get_alias_key_cert,

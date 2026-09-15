@@ -2,6 +2,8 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -11,8 +13,12 @@
 #include "host_commands.h"
 #include "htool.h"
 #include "htool_cmd.h"
+#include "htool_dice_certs.h"
 #include "htool_security_version.h"
 #include "protocol/host_cmd.h"
+#include "protocol/secret_provisioning.h"
+#include "protocol/util.h"
+#include "transports/libhoth_device.h"
 
 // This is a standalone CRC32 that matches Titan Firmware.
 // A table-free bit-level implementation is okay since there are no
@@ -34,6 +40,19 @@ uint32_t crc32(uint32_t initial_value, const uint8_t* buf, size_t size) {
 // Helper function used to return the lowest value integer given two integers
 static uint16_t min(uint16_t a, uint16_t b) { return (a < b) ? a : b; }
 
+// Executes a command on the provisioning log host command (0x3E40)
+static int exec_provisioning_log_cmd(struct libhoth_device* dev,
+                                     const void* req_payload,
+                                     size_t req_payload_size,
+                                     void* resp_buf,
+                                     size_t resp_buf_size,
+                                     size_t* out_resp_size) {
+  return libhoth_hostcmd_exec(
+      dev, /*command=*/HOTH_BASE_CMD(HOTH_PRV_CMD_HOTH_PROVISIONING_LOG),
+      /*version=*/0, req_payload, req_payload_size, resp_buf, resp_buf_size,
+      out_resp_size);
+}
+
 // Runs the command to read a portion of the provisioning log
 static int read_chunk_from_provisioning_log(struct libhoth_device* dev,
                                             const void* req_payload,
@@ -41,10 +60,8 @@ static int read_chunk_from_provisioning_log(struct libhoth_device* dev,
                                             void* resp_buf,
                                             size_t resp_buf_size,
                                             size_t* out_resp_size) {
-  return libhoth_hostcmd_exec(
-      dev, /*command=*/HOTH_BASE_CMD(HOTH_PRV_CMD_HOTH_PROVISIONING_LOG),
-      /*version=*/0, req_payload, req_payload_size, resp_buf, resp_buf_size,
-      out_resp_size);
+  return exec_provisioning_log_cmd(dev, req_payload, req_payload_size, resp_buf,
+                                  resp_buf_size, out_resp_size);
 }
 
 int htool_get_provisioning_log(const struct htool_invocation* inv) {
@@ -216,11 +233,13 @@ int htool_validate_and_sign(const struct htool_invocation* inv) {
     goto cleanup;
   }
 
-  output_ptr = fopen(output_file, "wb");
-  if (output_ptr == NULL) {
-    printf("Error: %s, when attempting to open file: %s\n", strerror(errno),
-           output_file);
-    goto cleanup;
+  if (strlen(output_file) > 0) {
+    output_ptr = fopen(output_file, "wb");
+    if (output_ptr == NULL) {
+      printf("Error: %s, when attempting to open file: %s\n", strerror(errno),
+             output_file);
+      goto cleanup;
+    }
   }
 
   enum provisioning_log_op operation = PROVISIONING_LOG_VALIDATE_AND_SIGN;
@@ -269,7 +288,9 @@ int htool_validate_and_sign(const struct htool_invocation* inv) {
         }
 
         // Write the signed provisioning_log into the output file
-        fwrite(response, response_size, sizeof(uint8_t), output_ptr);
+        if (output_ptr != NULL) {
+          fwrite(response, response_size, sizeof(uint8_t), output_ptr);
+        }
         break;
       }
     }
@@ -294,4 +315,382 @@ cleanup:
     free(perso_blob_data);
   }
   return status;
+}
+
+static void print_encryption_key_certificate(
+    FILE* out, const struct provisioning_encryption_key_certificate* cert) {
+  fprintf(out, "Encryption Key Certificate:\n");
+  fprintf(out, "  header:\n");
+  fprintf(out, "    signature_version: %" PRIu32 "\n",
+          cert->header.signature_version);
+  htool_print_hex_field(out, 4, "key_identifier", cert->header.key_identifier,
+                        sizeof(cert->header.key_identifier));
+  fprintf(out, "    key_size: %" PRIu32 "\n", cert->header.key_size);
+  fprintf(out, "    key_type: %" PRIu32 "\n", cert->header.key_type);
+  fprintf(out, "    key_op: %" PRIu32 "\n", cert->header.key_op);
+  htool_print_ec_p256_public_key(out, 2, "public_key", &cert->public_key);
+  htool_print_ec_p256_signature(out, 2, "signature", &cert->signature);
+}
+
+void htool_print_provisioning_encryption_key_certificate_chain(
+    FILE* out,
+    const struct provisioning_encryption_key_certificate_chain* chain) {
+  print_encryption_key_certificate(out, &chain->encryption_key_cert);
+  htool_print_dice_certificate_chain(out, 0, "DICE Certificate Chain",
+                                     &chain->dice_certificate_chain);
+}
+
+int htool_provisioning_get_encryption_key(const struct htool_invocation* inv) {
+  struct libhoth_device* dev = htool_libhoth_device();
+  if (!dev) {
+    return -1;
+  }
+
+  const char* output_file;
+  if (htool_get_param_string(inv, "output", &output_file) != 0) {
+    return -1;
+  }
+
+  struct provisioning_encryption_key_certificate_chain chain;
+  size_t response_size = 0;
+  libhoth_error err = libhoth_secret_provisioning_get_encryption_key(
+      dev, &chain, sizeof(chain), &response_size);
+  if (err != HOTH_SUCCESS) {
+    htool_report_error("secret_provisioning_get_encryption_key", err);
+    return -1;
+  }
+  if (response_size != sizeof(chain)) {
+    fprintf(stderr,
+            "Unexpected encryption key response size. Expecting %zu; Got %zu\n",
+            sizeof(chain), response_size);
+    return -1;
+  }
+
+  htool_print_provisioning_encryption_key_certificate_chain(stdout, &chain);
+
+  // Verification and signing tools consume the certificate chain as-is, so
+  // write out the unmodified response rather than the rendering above.
+  if (strlen(output_file) > 0) {
+    FILE* output = fopen(output_file, "wb");
+    if (output == NULL) {
+      fprintf(stderr, "Error: %s, when attempting to open file: %s\n",
+              strerror(errno), output_file);
+      return -1;
+    }
+    const size_t written = fwrite(&chain, 1, sizeof(chain), output);
+    const bool write_failed =
+        (written != sizeof(chain)) || (fclose(output) != 0);
+    if (write_failed) {
+      fprintf(stderr, "Error: %s, when writing file: %s\n", strerror(errno),
+              output_file);
+      return -1;
+    }
+  }
+  return 0;
+}
+
+// Reads the encrypted secrets from either `--secrets` (a binary file, as
+// produced by the offline encryption tools) or `--hex` (the same bytes as a
+// hex string, which is easier to paste into a remote shell).
+static int get_secrets(const struct htool_invocation* inv, uint8_t* secrets,
+                       size_t secrets_capacity, size_t* secrets_size) {
+  const char* secrets_file;
+  const char* secrets_hex;
+  if (htool_get_param_string(inv, "secrets", &secrets_file) != 0 ||
+      htool_get_param_string(inv, "hex", &secrets_hex) != 0) {
+    return -1;
+  }
+
+  const bool has_file = strlen(secrets_file) > 0;
+  const bool has_hex = strlen(secrets_hex) > 0;
+  if (has_file == has_hex) {
+    fprintf(stderr, "Exactly one of --secrets or --hex must be specified.\n");
+    return -1;
+  }
+
+  if (has_hex) {
+    if (libhoth_parse_hex_string(secrets_hex, secrets, secrets_capacity,
+                                 secrets_size) != 0) {
+      fprintf(stderr,
+              "Unable to parse --hex as a hex string of at most %zu bytes.\n",
+              secrets_capacity);
+      return -1;
+    }
+    return 0;
+  }
+
+  FILE* file = fopen(secrets_file, "rb");
+  if (file == NULL) {
+    fprintf(stderr, "Error: %s, when attempting to open file: %s\n",
+            strerror(errno), secrets_file);
+    return -1;
+  }
+
+  *secrets_size = fread(secrets, 1, secrets_capacity, file);
+  // A full buffer may mean the file was truncated; check for trailing bytes.
+  const bool too_large =
+      (*secrets_size == secrets_capacity) && (fgetc(file) != EOF);
+  const bool read_error = ferror(file) != 0;
+  fclose(file);
+
+  if (read_error) {
+    fprintf(stderr, "Error reading %s\n", secrets_file);
+    return -1;
+  }
+  if (too_large) {
+    fprintf(stderr, "%s is larger than the maximum of %zu bytes\n",
+            secrets_file, secrets_capacity);
+    return -1;
+  }
+  if (*secrets_size == 0) {
+    fprintf(stderr, "%s is empty\n", secrets_file);
+    return -1;
+  }
+  return 0;
+}
+
+int htool_provisioning_store_secrets(const struct htool_invocation* inv) {
+  struct libhoth_device* dev = htool_libhoth_device();
+  if (!dev) {
+    return -1;
+  }
+
+  uint8_t secrets[HOTH_SECRET_PROVISIONING_MAX_SECRETS_SIZE];
+  size_t secrets_size = 0;
+  if (get_secrets(inv, secrets, sizeof(secrets), &secrets_size) != 0) {
+    return -1;
+  }
+
+  libhoth_error err =
+      libhoth_secret_provisioning_store_secrets(dev, secrets, secrets_size);
+  if (err != HOTH_SUCCESS) {
+    htool_report_error("secret_provisioning_store_secrets", err);
+    return -1;
+  }
+  printf("Stored %zu bytes of encrypted secrets\n", secrets_size);
+  return 0;
+}
+
+int htool_provisioning_write(const struct htool_invocation* inv) {
+  struct libhoth_device* dev = htool_libhoth_device();
+  if (!dev) {
+    fprintf(stderr, "Unable to retrieve libhoth_device\n");
+    return -1;
+  }
+
+  const char* input_file;
+  if (htool_get_param_string(inv, "input", &input_file) != 0 ||
+      strlen(input_file) == 0) {
+    fprintf(stderr, "--input must be specified.\n");
+    return -1;
+  }
+
+  FILE* file = fopen(input_file, "rb");
+  if (file == NULL) {
+    fprintf(stderr, "Error: %s, when attempting to open file: %s\n",
+            strerror(errno), input_file);
+    return -1;
+  }
+
+  if (fseek(file, 0, SEEK_END) != 0) {
+    fprintf(stderr, "Error seeking to end of file: %s\n", input_file);
+    fclose(file);
+    return -1;
+  }
+  long file_size = ftell(file);
+  if (file_size <= 0) {
+    fprintf(stderr, "Error: file %s is empty or invalid size.\n", input_file);
+    fclose(file);
+    return -1;
+  }
+  if (file_size > PROVISIONING_LOG_MAX_SIZE) {
+    fprintf(stderr, "Error: file %s size (%ld) exceeds maximum %u bytes.\n",
+            input_file, file_size, PROVISIONING_LOG_MAX_SIZE);
+    fclose(file);
+    return -1;
+  }
+  rewind(file);
+
+  uint8_t log_data[PROVISIONING_LOG_MAX_SIZE];
+  if (fread(log_data, 1, file_size, file) != (size_t)file_size) {
+    fprintf(stderr, "Error reading from file: %s\n", input_file);
+    fclose(file);
+    return -1;
+  }
+  fclose(file);
+
+  uint16_t bytes_written = 0;
+  while (bytes_written < file_size) {
+    uint16_t chunk_size = (uint16_t)(file_size - bytes_written);
+    if (chunk_size > PROVISIONING_LOG_WRITE_CHUNK_MAX_SIZE) {
+      chunk_size = PROVISIONING_LOG_WRITE_CHUNK_MAX_SIZE;
+    }
+
+    struct {
+      struct hoth_provisioning_log_request req;
+      uint8_t data[PROVISIONING_LOG_WRITE_CHUNK_MAX_SIZE];
+    } write_req = {
+        .req = {
+            .version = 1,
+            .operation = PROVISIONING_LOG_WRITE,
+            .reserved = 0,
+            .offset = bytes_written,
+            .size = chunk_size,
+            .checksum = 0,
+        },
+    };
+    memcpy(write_req.data, log_data + bytes_written, chunk_size);
+
+    size_t response_size = 0;
+    int exec_status = exec_provisioning_log_cmd(
+        dev, &write_req, sizeof(write_req.req) + chunk_size, NULL, 0,
+        &response_size);
+    if (exec_status != 0) {
+      fprintf(stderr,
+              "Error writing provisioning log chunk at offset %u (status %d)\n",
+              bytes_written, exec_status);
+      return -1;
+    }
+    bytes_written += chunk_size;
+  }
+
+  struct hoth_provisioning_log_request commit_req = {
+      .version = 1,
+      .operation = PROVISIONING_LOG_COMMIT,
+      .reserved = 0,
+      .offset = 0,
+      .size = (uint16_t)file_size,
+      .checksum = crc32(0, log_data, file_size),
+  };
+  size_t response_size = 0;
+  int exec_status = exec_provisioning_log_cmd(
+      dev, &commit_req, sizeof(commit_req), NULL, 0, &response_size);
+  if (exec_status != 0) {
+    fprintf(stderr, "Error committing provisioning log (status %d)\n",
+            exec_status);
+    return -1;
+  }
+
+  printf("Successfully wrote and committed %ld bytes of provisioning log\n",
+         file_size);
+  return 0;
+}
+
+int htool_provisioning_activate(const struct htool_invocation* inv) {
+  struct libhoth_device* dev = htool_libhoth_device();
+  if (!dev) {
+    fprintf(stderr, "Unable to retrieve libhoth_device\n");
+    return -1;
+  }
+
+  const char* device_id_hex;
+  if (htool_get_param_string(inv, "device_id", &device_id_hex) != 0 ||
+      strlen(device_id_hex) == 0) {
+    fprintf(stderr, "--device_id must be specified.\n");
+    return -1;
+  }
+
+  uint8_t device_id[PROVISIONING_DEVICE_ID_SIZE];
+  size_t device_id_len = 0;
+  if (libhoth_parse_hex_string(device_id_hex, device_id, sizeof(device_id),
+                               &device_id_len) != 0 ||
+      device_id_len != sizeof(device_id)) {
+    fprintf(stderr,
+            "Invalid device_id: must be %d bytes (%d hex characters).\n",
+            PROVISIONING_DEVICE_ID_SIZE, PROVISIONING_DEVICE_ID_SIZE * 2);
+    return -1;
+  }
+
+  struct {
+    struct hoth_provisioning_log_request req;
+    uint8_t data[PROVISIONING_DEVICE_ID_SIZE];
+  } act_req = {
+      .req = {
+          .version = 1,
+          .operation = PROVISIONING_LOG_ACTIVATE,
+          .reserved = 0,
+          .offset = 0,
+          .size = sizeof(device_id),
+          .checksum = 0,
+      },
+  };
+  memcpy(act_req.data, device_id, sizeof(device_id));
+
+  size_t response_size = 0;
+  int exec_status = exec_provisioning_log_cmd(
+      dev, &act_req, sizeof(act_req), NULL, 0, &response_size);
+  if (exec_status != 0) {
+    fprintf(stderr, "Error activating provisioning log (status %d)\n",
+            exec_status);
+    return -1;
+  }
+
+  printf("Provisioning log activated successfully with Device ID\n");
+  return 0;
+}
+
+int htool_provisioning_load_mldsa_key(const struct htool_invocation* inv) {
+  struct libhoth_device* dev = htool_libhoth_device();
+  if (!dev) {
+    fprintf(stderr, "Unable to retrieve libhoth_device\n");
+    return -1;
+  }
+
+  const char* key_file;
+  const char* key_hex;
+  if (htool_get_param_string(inv, "key", &key_file) != 0 ||
+      htool_get_param_string(inv, "hex", &key_hex) != 0) {
+    return -1;
+  }
+
+  const bool has_file = strlen(key_file) > 0;
+  const bool has_hex = strlen(key_hex) > 0;
+  if (has_file == has_hex) {
+    fprintf(stderr, "Exactly one of --key or --hex must be specified.\n");
+    return -1;
+  }
+
+  uint8_t key_buf[HOTH_SECRET_PROVISIONING_MLDSA44_PUBLIC_KEY_BYTES];
+  if (has_hex) {
+    size_t parsed_size = 0;
+    if (libhoth_parse_hex_string(key_hex, key_buf, sizeof(key_buf),
+                                 &parsed_size) != 0 ||
+        parsed_size != sizeof(key_buf)) {
+      fprintf(stderr, "Unable to parse --hex as a %d-byte hex string.\n",
+              HOTH_SECRET_PROVISIONING_MLDSA44_PUBLIC_KEY_BYTES);
+      return -1;
+    }
+  } else {
+    FILE* file = fopen(key_file, "rb");
+    if (file == NULL) {
+      fprintf(stderr, "Error: %s, when attempting to open file: %s\n",
+              strerror(errno), key_file);
+      return -1;
+    }
+    const size_t read_bytes = fread(key_buf, 1, sizeof(key_buf), file);
+    const bool too_large =
+        (read_bytes == sizeof(key_buf)) && (fgetc(file) != EOF);
+    const bool read_error = ferror(file) != 0;
+    fclose(file);
+
+    if (read_error) {
+      fprintf(stderr, "Error reading %s\n", key_file);
+      return -1;
+    }
+    if (too_large || read_bytes != sizeof(key_buf)) {
+      fprintf(stderr, "Error: %s size (%zu) must be exactly %d bytes.\n",
+              key_file, read_bytes,
+              HOTH_SECRET_PROVISIONING_MLDSA44_PUBLIC_KEY_BYTES);
+      return -1;
+    }
+  }
+
+  libhoth_error err = libhoth_secret_provisioning_load_mldsa_public_key(
+      dev, key_buf, sizeof(key_buf));
+  if (err != HOTH_SUCCESS) {
+    htool_report_error("secret_provisioning_load_mldsa_key", err);
+    return -1;
+  }
+  printf("ML-DSA public key loaded successfully\n");
+  return 0;
 }

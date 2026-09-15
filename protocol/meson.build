@@ -26,6 +26,7 @@ protocol_srcs = [
     'util.c',
     'console.c',
     'gpio_drive_strength.c',
+    'secret_provisioning.c',
     'status.c'
 ]
 

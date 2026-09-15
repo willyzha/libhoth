@@ -69,10 +69,14 @@ cc_library(
     deps = [
         ":host_commands",
         ":htool_cmd",
+        ":htool_dice_certs",
         ":htool_header",
         ":htool_macros",
+        ":htool_security_v2_defs",
         ":htool_security_version",
         "//protocol:host_cmd",
+        "//protocol:secret_provisioning",
+        "//protocol:util",
         "//transports:libhoth_device",
     ],
 )
@@ -92,6 +96,25 @@ cc_library(
 cc_library(
     name = "htool_security_v2_defs",
     hdrs = ["htool_security_v2_defs.h"],
+)
+
+cc_library(
+    name = "htool_dice_certs",
+    srcs = ["htool_dice_certs.c"],
+    hdrs = ["htool_dice_certs.h"],
+    deps = [
+        ":htool_security_v2_defs",
+    ],
+)
+
+cc_test(
+    name = "htool_dice_certs_test",
+    srcs = ["htool_dice_certs_test.cc"],
+    deps = [
+        ":htool_dice_certs",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
 )
 
 cc_library(
@@ -187,6 +210,8 @@ cc_binary(
         "htool_debug.h",
         "htool_dfu.c",
         "htool_dfu.h",
+        "htool_dice_certs.c",
+        "htool_dice_certs.h",
         "htool_firmware_update.c",
         "htool_firmware_update.h",
         "htool_i2c.c",
@@ -267,6 +292,7 @@ cc_binary(
         "//protocol:progress",
         "//protocol:reboot",
         "//protocol:rot_firmware_version",
+        "//protocol:secret_provisioning",
         "//protocol:secure_boot",
         "//protocol:spi_proxy",
         "//protocol:statistics",

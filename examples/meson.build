@@ -26,6 +26,8 @@ executable(
         'htool_debug.c',
         'htool_debug.h',
         'htool_dfu.c',
+        'htool_dice_certs.h',
+        'htool_dice_certs.c',
         'htool_firmware_update.c',
         'htool_i2c.c',
         'htool_jtag.c',
@@ -79,12 +81,43 @@ gmock_dep = dependency('gmock', main: false, disabler: true, required: get_optio
 
 if gtest_dep.found() and gmock_dep.found()
     test(
+        'htool_dice_certs_test_asan',
+        executable(
+            'htool_dice_certs_test_asan_exe',
+            sources: [
+                'htool_dice_certs.h',
+                'htool_dice_certs.c',
+                'htool_dice_certs_test.cc',
+            ],
+            include_directories: incdir,
+            dependencies: [gtest_dep, gmock_dep],
+            c_args: ['-fsanitize=address'],
+            cpp_args: ['-fsanitize=address'],
+            link_args: ['-fsanitize=address'],
+        ),
+    )
+    test(
+        'htool_dice_certs_test',
+        executable(
+            'htool_dice_certs_test_exe',
+            sources: [
+                'htool_dice_certs.h',
+                'htool_dice_certs.c',
+                'htool_dice_certs_test.cc',
+            ],
+            include_directories: incdir,
+            dependencies: [gtest_dep, gmock_dep],
+        ),
+    )
+
+    test(
         'htool_provisioning_test_asan',
         executable(
             'htool_provisioning_test_asan_exe',
             sources: [
                 'test/test_util.h',
                 'test/test_util.cc',
+                'htool_dice_certs.c',
                 'htool_provisioning.c',
                 'htool_provisioning_test.cc',
                 '../protocol/test/libhoth_device_mock.cc',
@@ -104,6 +137,7 @@ if gtest_dep.found() and gmock_dep.found()
             sources: [
                 'test/test_util.h',
                 'test/test_util.cc',
+                'htool_dice_certs.c',
                 'htool_provisioning.c',
                 'htool_provisioning_test.cc',
                 '../protocol/test/libhoth_device_mock.cc',

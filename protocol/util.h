@@ -31,6 +31,13 @@ uint32_t libhoth_prng_seed();
 // Helper function for writing all of `buf` into `fd`
 int libhoth_force_write(int fd, const void* buf, size_t count);
 
+// Decodes the NUL-terminated hex string `hex` (an even number of hex digits,
+// without any separators or "0x" prefix) into `out`. On success returns 0 and
+// stores the number of decoded bytes in `out_len`. Returns -1 if the string is
+// malformed or does not fit in `out_size` bytes.
+int libhoth_parse_hex_string(const char* hex, uint8_t* out, size_t out_size,
+                             size_t* out_len);
+
 #ifdef __cplusplus
 }
 #endif

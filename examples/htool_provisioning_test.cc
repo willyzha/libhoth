@@ -740,3 +740,68 @@ TEST_F(HtoolProvisioningTest, ValidateAndSignTooLargeResponse) {
   remove(tmp_perso_blob_file.c_str());
   remove(tmp_output_file.c_str());
 }
+
+TEST_F(HtoolProvisioningTest, GetEncryptionKeySuccess) {
+  struct htool_invocation inv{};
+  std::string tmp_output_file = tmp_dir_path_ + "/encryption_key.bin";
+  EXPECT_CALL(invocation_mock_, GetParamString("output", _))
+      .WillOnce(DoAll(SetArgPointee<1>(tmp_output_file.c_str()), Return(0)));
+
+  struct provisioning_encryption_key_certificate_chain fake_chain{};
+  fake_chain.encryption_key_cert.header.signature_version = 1;
+  memcpy(fake_chain.encryption_key_cert.header.key_identifier, "ENC0", 4);
+
+  EXPECT_CALL(mock_, send(_, _, _)).WillOnce(Return(LIBHOTH_OK));
+  EXPECT_CALL(mock_, receive(_, _, _, _, _))
+      .WillOnce(DoAll(CopyResp(&fake_chain, sizeof(fake_chain)),
+                      Return(LIBHOTH_OK)));
+
+  ASSERT_EQ(htool_provisioning_get_encryption_key(&inv), 0);
+
+  FILE* fp = fopen(tmp_output_file.c_str(), "rb");
+  ASSERT_NE(fp, nullptr);
+  struct provisioning_encryption_key_certificate_chain read_chain{};
+  ASSERT_EQ(fread(&read_chain, 1, sizeof(read_chain), fp), sizeof(read_chain));
+  fclose(fp);
+  EXPECT_EQ(memcmp(&fake_chain, &read_chain, sizeof(fake_chain)), 0);
+  remove(tmp_output_file.c_str());
+}
+
+TEST_F(HtoolProvisioningTest, StoreSecretsHexSuccess) {
+  struct htool_invocation inv{};
+  EXPECT_CALL(invocation_mock_, GetParamString("secrets", _))
+      .WillOnce(DoAll(SetArgPointee<1>(""), Return(0)));
+  EXPECT_CALL(invocation_mock_, GetParamString("hex", _))
+      .WillOnce(DoAll(SetArgPointee<1>("01020304"), Return(0)));
+
+  uint8_t dummy_resp = 0;
+  EXPECT_CALL(mock_, send(_, _, _)).WillOnce(Return(LIBHOTH_OK));
+  EXPECT_CALL(mock_, receive(_, _, _, _, _))
+      .WillOnce(DoAll(CopyResp(&dummy_resp, 0), Return(LIBHOTH_OK)));
+
+  ASSERT_EQ(htool_provisioning_store_secrets(&inv), 0);
+}
+
+TEST_F(HtoolProvisioningTest, StoreSecretsFileSuccess) {
+  struct htool_invocation inv{};
+  std::string tmp_secrets_file = tmp_dir_path_ + "/secrets.bin";
+  FILE* fp = fopen(tmp_secrets_file.c_str(), "wb");
+  ASSERT_NE(fp, nullptr);
+  uint8_t secret_bytes[] = {0xaa, 0xbb, 0xcc, 0xdd};
+  ASSERT_EQ(fwrite(secret_bytes, 1, sizeof(secret_bytes), fp),
+            sizeof(secret_bytes));
+  fclose(fp);
+
+  EXPECT_CALL(invocation_mock_, GetParamString("secrets", _))
+      .WillOnce(DoAll(SetArgPointee<1>(tmp_secrets_file.c_str()), Return(0)));
+  EXPECT_CALL(invocation_mock_, GetParamString("hex", _))
+      .WillOnce(DoAll(SetArgPointee<1>(""), Return(0)));
+
+  uint8_t dummy_resp = 0;
+  EXPECT_CALL(mock_, send(_, _, _)).WillOnce(Return(LIBHOTH_OK));
+  EXPECT_CALL(mock_, receive(_, _, _, _, _))
+      .WillOnce(DoAll(CopyResp(&dummy_resp, 0), Return(LIBHOTH_OK)));
+
+  ASSERT_EQ(htool_provisioning_store_secrets(&inv), 0);
+  remove(tmp_secrets_file.c_str());
+}

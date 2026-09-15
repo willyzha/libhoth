@@ -69,10 +69,14 @@ cc_library(
     deps = [
         ":host_commands",
         ":htool_cmd",
+        ":htool_dice_certs",
         ":htool_header",
         ":htool_macros",
+        ":htool_security_v2_defs",
         ":htool_security_version",
         "//protocol:host_cmd",
+        "//protocol:secret_provisioning",
+        "//protocol:util",
         "//transports:libhoth_device",
     ],
 )
@@ -270,8 +274,6 @@ cc_binary(
         "htool_sbs_dual.h",
         "htool_sbs_single.c",
         "htool_sbs_single.h",
-        "htool_secret_provisioning.c",
-        "htool_secret_provisioning.h",
         "htool_secure_boot.c",
         "htool_secure_boot.h",
         "htool_security_certificates.c",

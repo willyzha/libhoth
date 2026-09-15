@@ -49,7 +49,6 @@
 #include "htool_rot_usb.h"
 #include "htool_sbs_dual.h"
 #include "htool_sbs_single.h"
-#include "htool_secret_provisioning.h"
 #include "htool_secure_boot.h"
 #include "htool_security_certificates.h"
 #include "htool_security_info.h"

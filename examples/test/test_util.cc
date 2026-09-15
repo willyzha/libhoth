@@ -22,3 +22,5 @@ std::string print_hex_dump(const void* data_ptr, size_t size_bytes) {
 
   return ss.str();
 }
+
+extern "C" void htool_report_error(const char* cmd_name, libhoth_error err) {}

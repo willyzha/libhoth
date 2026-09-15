@@ -48,8 +48,6 @@ executable(
         'htool_sbs_single.c',
         'htool_sbs_dual.c',
         'htool_usb.c',
-        'htool_secret_provisioning.h',
-        'htool_secret_provisioning.c',
         'htool_secure_boot.h',
         'htool_secure_boot.c',
         'htool_srtm.h',
@@ -121,6 +119,7 @@ if gtest_dep.found() and gmock_dep.found()
             sources: [
                 'test/test_util.h',
                 'test/test_util.cc',
+                'htool_dice_certs.c',
                 'htool_provisioning.c',
                 'htool_provisioning_test.cc',
                 '../protocol/test/libhoth_device_mock.cc',
@@ -140,6 +139,7 @@ if gtest_dep.found() and gmock_dep.found()
             sources: [
                 'test/test_util.h',
                 'test/test_util.cc',
+                'htool_dice_certs.c',
                 'htool_provisioning.c',
                 'htool_provisioning_test.cc',
                 '../protocol/test/libhoth_device_mock.cc',

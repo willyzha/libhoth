@@ -65,6 +65,7 @@ class HtoolInvocationMock {
 // is used but not defined.
 // The definition exists in the calling tests (e.g. htool_provisioning_test.cc)
 libhoth_security_version htool_get_security_version(struct libhoth_device* dev);
+void htool_report_error(const char* cmd_name, libhoth_error err);
 
 // Mock for htool_exec_security_v2_cmd
 class HtoolSecurityV2Mock {
